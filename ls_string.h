@@ -847,7 +847,7 @@ ls_parser::TokenToReal32(token Token)
             Numbers[NumberCounter++] = ls_parser::CharToDigit(*At);
         } else if (*At == '.' && !FoundADot) {
             FoundADot = true;
-            IntegerCount = (At - Token.Text.Data);
+            IntegerCount = NumberCounter;
         } else {
             // Assert(!"Numbers should be prepared");
         }
@@ -975,14 +975,9 @@ ls_parser::GetToken()
                     Token.Type = Token_Dot;
                 }
             } else if (*C == '-') {
-                if (*C && this->At[1] && *C == '.' && ls_parser::Digit(this->At[1])) {
-                    Token.Type = Token_Real;
-                    this->At += 2;
-                    while (RemainingSize && ls_parser::Digit(*C)) {
-                        ++C;
-                        --RemainingSize;
-                    }
-                } else if (*C && ls_parser::Digit(*C)) {
+                if (RemainingSize == 0 || C[1] == ' ') {
+                    Token.Type = Token_Minus;
+                } else if (ls_parser::Digit(C[1])) {
                     Token.Type = Token_Integer;
                     ++C;
                     while (RemainingSize && (ls_parser::Digit(*C) || *C == '.')) {
@@ -992,9 +987,8 @@ ls_parser::GetToken()
                         ++C;
                         --RemainingSize;
                     }
+
                     Token.Text.Size = C - this->At;
-                } else {
-                    Token.Type = Token_Minus;
                 }
             } else if (ls_parser::Alpha(*C)){
                 Token.Type = Token_Identifier;

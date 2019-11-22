@@ -1,12 +1,51 @@
 #ifndef INCLUDE_GUARD_LS_SVG
 #define INCLUDE_GUARD_LS_SVG
 
+template <typename type>
+struct svg_array {
+    type *Data;
+    u32 Size;
+    u32 Cap;
+
+    void FitN(u32 N) {
+        if (!this->Data) {
+            this->Cap = 10;
+            this->Data = (type *)malloc(this->Cap * sizeof(type));
+        }
+
+        if (this->Size + Size > this->Cap) {
+            u32 NewCap = this->Cap * 2;
+            this->Data = (type *)realloc(this->Data, NewCap);
+            this->Cap = NewCap;
+        }
+    }
+
+    type *AllocN(u32 N) {
+        this->FitN(N);
+
+        type *Result = this->Data + this->Size;
+        *Result = {};
+        this->Size += Size;
+
+        return Result;
+    }
+
+    void Push(type Data) {
+        this->FitN(1);
+
+        type *Result = this->Data + this->Size;
+        *Result = Data;
+        this->Size += Size;
+    }
+};
+
 enum svg_element_ {
     SvgElement_Null,
     SvgElement_Rect,
     SvgElement_Circle,
     SvgElement_Ellipse,
     SvgElement_Line,
+    SvgElement_Path,
     SvgElement_Count,
 };
 
@@ -18,7 +57,7 @@ enum svg_segment_ {
     SvgSegment_Line,
     SvgSegment_QuadraticBezier,
     SvgSegment_CubicBezier,
-    SvgSegment_Elliptic,
+    SvgSegment_Elliptical,
 };
 
 struct svg_path_segement {
@@ -29,16 +68,19 @@ struct svg_path_segement {
             svg_v2 P1, P2, C1, C2;
         };
         struct {
-            svg_v2 R;
+            r32 Rx;
+            r32 Ry;
             r32 Angle;
-            u32 LargeArc;
-            svg_v2 NextP;
+            char UseLargeArc;
+            char Clockwise;
+            svg_v2 EndP;
         };
     };
 };
 
 struct svg_circle {
     svg_v2 Center;
+
     r32 R;
 };
 
@@ -48,8 +90,7 @@ struct svg_rect {
 };
 
 struct svg_path {
-    svg_path_segement *Segments;
-    u32 SegmentCount;
+    svg_array<svg_path_segement> Segments;
     b32 Closed;
 };
 
@@ -64,8 +105,7 @@ struct svg_element {
 };
 
 struct svg {
-    svg_element *Elements;
-    u32 ElementCount;
+    svg_array<svg_element> Elements;
 };
 
 enum svg_parsing_mode_ {
@@ -101,163 +141,217 @@ enum svg_path_command_ {
     SvgPathCommand_Count,
 };
 
+
 svg_path_command_ CharCommandMap[128] = {};
 
 svg_v2
-SvgParseV2(ls_parser P)
+SvgParseV2(ls_parser *P)
 {
-    token Token = P.GetToken();
-    assert(Token.Type == Token.Real);
+    token Token = P->GetToken();
+    assert(Token.Type == Token_Real);
     r32 x = Token.Real;
 
-    Token = P.GetToken();
-    assert(Token.Type == Token.Real);
+    Token = P->GetToken();
+    assert(Token.Type == Token_Real);
     r32 y = Token.Real;
 
     return {x,y};
 }
 
 r32
-SvgParseFloat(ls_parser P)
+SvgParseFloat(ls_parser *P)
 {
-    token Token = P.GetToken();
-    assert(Token.Type == Token.Real);
+    token Token = P->GetToken();
+    assert(Token.Type == Token_Real);
     r32 Value = Token.Real;
     return Value;
 }
 
+int
+SvgParseInt(ls_parser *P)
+{
+    token Token = P->GetToken();
+    assert(Token.Type == Token_Integer);
+    int Value = Token.Integer;
+    return Value;
+}
+
+b32
+SvgParseCommand(ls_parser *P, svg_path_command_ *Command)
+{
+    P->TrimLeft();
+
+    if (ls_parser::Alpha(*P->At)) {
+        *Command = CharCommandMap[*P->At];
+        ++P->At;
+        return true;
+    }
+
+    return false;
+}
+
 void
-SvgAddLineSegment(svg_v2 StartP, svg_v2 EndP)
+SvgAddLineSegment(svg_path *Path, svg_v2 StartP, svg_v2 EndP)
 {
     svg_path_segement S;
     S.Type = SvgSegment_Line;
     S.P1 = StartP;
     S.P2 = EndP;
+
+    Path->Segments.Push(S);
 }
 
 void
-SvgAddCubicBezierSegment(svg_v2 StartP, svg_v2 EndP, svg_v2 Control1, svg_v2 Control2)
+SvgAddCubicBezierSegment(svg_path *Path, svg_v2 StartP, svg_v2 EndP, svg_v2 Control1, svg_v2 Control2)
 {
     svg_path_segement S;
     S.Type = SvgSegment_CubicBezier;
     // S.P1 = StartP;
     // S.P2 = EndP;
+
+    Path->Segments.Push(S);
 }
 
 void
-SvgAddQuadraticBezierSegment(svg_v2 StartP, svg_v2 EndP)
+SvgAddQuadraticBezierSegment(svg_path *Path, svg_v2 StartP, svg_v2 EndP)
 {
     svg_path_segement S;
     S.Type = SvgSegment_QuadraticBezier;
     // S.P1 = StartP;
     // S.P2 = EndP;
+
+    Path->Segments.Push(S);
 }
 
 void
-SvgAddEllipticSegment(svg_v2 StartP, svg_v2 EndP)
+SvgAddEllipticalSegment(svg_path *Path, r32 Rx, r32 Ry, r32 Angle, b32 UseLargeArc, b32 Clockwise, svg_v2 Pos)
 {
     svg_path_segement S;
-    S.Type = SvgSegment_Elliptic;
-    // S.P1 = StartP;
-    // S.P2 = EndP;
+    S.Type = SvgSegment_Elliptical;
+    S.Rx = Rx;
+    S.Ry = Ry;
+    S.Angle = Angle;
+    S.UseLargeArc = UseLargeArc;
+    S.Clockwise = Clockwise;
+    Path->Segments.Push(S);
 }
 
 void
-SvgPathGetCommand(ls_string String)
+SvgParsePath(svg *Svg, ls_string String)
 {
     ls_parser P = String;
 
-    svg_path_command_ CurrentCommand;
+    svg_path_command_ CurrentCommand = SvgPathCommand_Null;
     svg_v2 CurrentP = {};
 
+    auto *E = Svg->Elements.AllocN(1);
+    E->Type = SvgElement_Path;
+
     while (P.RemainingBytes()) {
-        if (ls_parser::Alpha(*P.At)) {
-            CurrentCommand = CharCommandMap[*P.At];
+        SvgParseCommand(&P, &CurrentCommand);
+        assert(CurrentCommand != SvgPathCommand_Null);
 
-            assert(CurrentCommand != SvgPathCommand_Null);
+        if (CurrentCommand == SvgPathCommand_Move) {
+            CurrentP = SvgParseV2(&P);
+            CurrentCommand = SvgPathCommand_LineTo;
+        } else if (CurrentCommand == SvgPathCommand_MoveRel) {
+            svg_v2 Pos = SvgParseV2(&P);
+            CurrentP.x += Pos.x;
+            CurrentP.y += Pos.y;
+            CurrentCommand = SvgPathCommand_LineToRel;
+        } else if (CurrentCommand == SvgPathCommand_LineTo) {
+            svg_v2 Pos = SvgParseV2(&P);
+            SvgAddLineSegment(&E->Path, CurrentP, Pos);
+            CurrentP = Pos;
+        } else if (CurrentCommand == SvgPathCommand_LineToRel) {
+            svg_v2 Pos = SvgParseV2(&P);
+            Pos.x = CurrentP.x + Pos.x;
+            Pos.y = CurrentP.y + Pos.y;
 
-            if (CurrentCommand == SvgPathCommand_Move) {
-                CurrentP = SvgParseV2(P);
-                CurrentCommand = SvgPathCommand_LineTo;
-            } else if (CurrentCommand == SvgPathCommand_MoveRel) {
-                svg_v2 Pos = SvgParseV2(P);
-                CurrentP.x += Pos.x;
-                CurrentP.y += Pos.y;
-                CurrentCommand = SvgPathCommand_LineToRel;
-            } else if (CurrentCommand == SvgPathCommand_LineTo) {
-                svg_v2 Pos = SvgParseV2(P);
-                SvgAddLineSegment(CurrentP, Pos);
-                CurrentP = Pos;
-            } else if (CurrentCommand == SvgPathCommand_LineToRel) {
-                svg_v2 Pos = SvgParseV2(P);
-                Pos.x = CurrentP.x + Pos.x;
-                Pos.y = CurrentP.y + Pos.y;
+            SvgAddLineSegment(&E->Path, CurrentP, Pos);
+            CurrentP = Pos;
+        } else if (CurrentCommand == SvgPathCommand_HorizontalLine) {
+            r32 X = SvgParseFloat(&P);
+            svg_v2 EndP = CurrentP;
+            EndP.x = X;
+            SvgAddLineSegment(&E->Path, CurrentP, EndP);
+            CurrentP = EndP;
+        } else if (CurrentCommand == SvgPathCommand_HorizontalLineRel) {
+            r32 X = SvgParseFloat(&P);
+            svg_v2 EndP = CurrentP;
+            EndP.x += X;
+            SvgAddLineSegment(&E->Path, CurrentP, EndP);
+            CurrentP = EndP;
+        } else if (CurrentCommand == SvgPathCommand_VerticalLine) {
+            r32 Y = SvgParseFloat(&P);
+            svg_v2 EndP = CurrentP;
+            EndP.y = Y;
+            SvgAddLineSegment(&E->Path, CurrentP, EndP);
+            CurrentP = EndP;
+        } else if (CurrentCommand == SvgPathCommand_VerticalLineRel) {
+            r32 Y = SvgParseFloat(&P);
+            svg_v2 EndP = CurrentP;
+            EndP.y += Y;
+            SvgAddLineSegment(&E->Path, CurrentP, EndP);
+            CurrentP = EndP;
+        } else if (CurrentCommand == SvgPathCommand_CubicBezier) {
+            svg_v2 Control1 = SvgParseV2(&P);
+            svg_v2 Control2 = SvgParseV2(&P);
+            svg_v2 EndP = SvgParseV2(&P);
+            SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
+            CurrentP = EndP;
+        } else if (CurrentCommand == SvgPathCommand_CubicBezierRel) {
+            svg_v2 Control1 = SvgParseV2(&P);
+            svg_v2 Control2 = SvgParseV2(&P);
+            svg_v2 EndP = SvgParseV2(&P);
 
-                SvgAddLineSegment(CurrentP, Pos);
-                CurrentP = Pos;
-            } else if (CurrentCommand == SvgPathCommand_HorizontalLine) {
-                r32 X = SvgParseFloat(P);
-                svg_v2 EndP = CurrentP;
-                EndP.x = X;
-                SvgAddLineSegment(CurrentP, EndP);
-                CurrentP = EndP;
-            } else if (CurrentCommand == SvgPathCommand_HorizontalLineRel) {
-                r32 X = SvgParseFloat(P);
-                svg_v2 EndP = CurrentP;
-                EndP.x += X;
-                SvgAddLineSegment(CurrentP, EndP);
-                CurrentP = EndP;
-            } else if (CurrentCommand == SvgPathCommand_VerticalLine) {
-                r32 Y = SvgParseFloat(P);
-                svg_v2 EndP = CurrentP;
-                EndP.y = Y;
-                SvgAddLineSegment(CurrentP, EndP);
-                CurrentP = EndP;
-            } else if (CurrentCommand == SvgPathCommand_VerticalLineRel) {
-                r32 Y = SvgParseFloat(P);
-                svg_v2 EndP = CurrentP;
-                EndP.y += Y;
-                SvgAddLineSegment(CurrentP, EndP);
-                CurrentP = EndP;
-            } else if (CurrentCommand == SvgPathCommand_CubicBezier) {
-                svg_v2 Control1 = SvgParseV2(P);
-                svg_v2 Control2 = SvgParseV2(P);
-                svg_v2 EndP = SvgParseV2(P);
-                SvgAddCubicBezierSegment(CurrentP, EndP, Control1, Control2);
-                CurrentP = EndP;
-            } else if (CurrentCommand == SvgPathCommand_CubicBezierRel) {
-                svg_v2 Control1 = SvgParseV2(P);
-                svg_v2 Control2 = SvgParseV2(P);
-                svg_v2 EndP = SvgParseV2(P);
+            Control1.x += CurrentP.x;
+            Control1.y += CurrentP.y;
 
-                Control1.x += CurrentP.x;
-                Control1.y += CurrentP.y;
+            Control2.x += CurrentP.x;
+            Control2.y += CurrentP.y;
 
-                Control2.x += CurrentP.x;
-                Control2.y += CurrentP.y;
+            EndP.x += CurrentP.x;
+            EndP.y += CurrentP.y;
 
-                EndP.x += CurrentP.x;
-                EndP.y += CurrentP.y;
+            SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
+            CurrentP = EndP;
+        } else if (CurrentCommand == SvgPathCommand_EllipticalArc) {
+            r32 Rx = SvgParseFloat(&P);
+            r32 Ry = SvgParseFloat(&P);
+            r32 Angle = SvgParseFloat(&P);
+            int Arc = SvgParseInt(&P);
+            int Sweep = SvgParseInt(&P);
+            svg_v2 Pos = SvgParseV2(&P);
 
-                SvgAddCubicBezierSegment(CurrentP, EndP, Control1, Control2);
-                CurrentP = EndP;
-            }
+            SvgAddEllipticalSegment(&E->Path, Rx, Ry, Angle, Arc, Sweep, Pos);
+            CurrentP = Pos;
+        } else if (CurrentCommand == SvgPathCommand_EllipticalArcRel) {
+            r32 Rx = SvgParseFloat(&P);
+            r32 Ry = SvgParseFloat(&P);
+            r32 Angle = SvgParseFloat(&P);
+            int Arc = SvgParseInt(&P);
+            int Sweep = SvgParseInt(&P);
+            svg_v2 Pos = SvgParseV2(&P);
+
+            Pos.x += CurrentP.x;
+            Pos.y += CurrentP.y;
+
+            SvgAddEllipticalSegment(&E->Path, Rx, Ry, Angle, Arc, Sweep, Pos);
+            CurrentP = Pos;
+        } else if (CurrentCommand == SvgPathCommand_ClosePath) {
+            E->Path.Closed = true;
+            assert(!"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         }
     }
 }
 
 void
-SvgParsePath(ls_string String)
-{
-
-}
-
-void
-SvgParseProperty(ls_string Tag, ls_string Prop, ls_string PropValue)
+SvgParseProperty(svg *Svg, ls_string Tag, ls_string Prop, ls_string PropValue)
 {
     if (Tag == "path") {
-        if (PropValue == "d") {
-
+        if (Prop == "d") {
+            SvgParsePath(Svg, PropValue);
         }
     }
 }
@@ -343,7 +437,7 @@ SvgParse(u8 *Data, u32 Size)
                 Token = String.GetToken();
                 assert(Token.Type == Token_String);
 
-                SvgParseProperty(TagName, Prop, Token.Text);
+                SvgParseProperty(&Svg, TagName, Prop, Token.Text);
             } else {
                 if (Token.Type == Token_ForwardSlash) {
                     // non-paired tag
