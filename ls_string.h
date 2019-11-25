@@ -303,8 +303,17 @@ struct token {
 
     union {
         r32 Real;
-        int Integer;
+        s32 Integer;
     };
+
+    r32 GetReal() {
+        assert(this->Type == Token_Real || this->Type == Token_Integer);
+        return this->Type == Token_Integer ? (r32)this->Integer : this->Real;
+    }
+    s32 GetInteger() {
+        assert(this->Type == Token_Real || this->Type == Token_Integer);
+        return this->Type == Token_Real ? (s32)this->Real : this->Integer;
+    }
 };
 
 struct ls_parser: ls_string {
@@ -854,15 +863,17 @@ ls_parser::TokenToReal32(token Token)
         ++At;
     }
 
+    float Multiplier = 0.1f;
     if (IntegerCount) {
-        float Multiplier = (float)ls_parser::Power(10, IntegerCount - 1);
-        for (u32 i=0; i < NumberCounter; ++i) {
-            Result += Multiplier * Numbers[i];
-            Multiplier /= 10.0f;
-        }
-
-        Result *= Sign;
+        Multiplier = (float)ls_parser::Power(10, IntegerCount - 1);
     }
+
+    for (u32 i=0; i < NumberCounter; ++i) {
+        Result += Multiplier * Numbers[i];
+        Multiplier /= 10.0f;
+    }
+
+    Result *= Sign;
 
     return Result;
 }
@@ -963,32 +974,20 @@ ls_parser::GetToken()
 
         default : {
             if (*C == '.') {
-                if (*C && ls_parser::Digit(*C)) {
+                if (RemainingSize == 0 || !ls_parser::Digit(C[1])) {
+                    Token.Type = Token_Dot;
+                } else {
                     Token.Type = Token_Real;
                     ++C;
-                    while (RemainingSize && ls_parser::Digit(*C)) {
-                        ++C;
-                        --RemainingSize;
-                    }
-                    Token.Text.Size = C - this->At;
-                } else {
-                    Token.Type = Token_Dot;
+                    goto parse_number;
                 }
             } else if (*C == '-') {
                 if (RemainingSize == 0 || C[1] == ' ') {
                     Token.Type = Token_Minus;
-                } else if (ls_parser::Digit(C[1])) {
+                } else if (ls_parser::Digit(C[1]) || C[1] == '.') {
                     Token.Type = Token_Integer;
                     ++C;
-                    while (RemainingSize && (ls_parser::Digit(*C) || *C == '.')) {
-                        if (*C == '.') {
-                            Token.Type = Token_Real;
-                        }
-                        ++C;
-                        --RemainingSize;
-                    }
-
-                    Token.Text.Size = C - this->At;
+                    goto parse_number;
                 }
             } else if (ls_parser::Alpha(*C)){
                 Token.Type = Token_Identifier;
@@ -1005,7 +1004,13 @@ ls_parser::GetToken()
                 Token.Text.Size = C - this->At;
             } else if (ls_parser::Digit(*C)) {
                 Token.Type = Token_Integer;
-                while (RemainingSize && (ls_parser::Digit(*C) || *C == '.')) {
+                goto parse_number;
+            } else {
+                Token.Type = Token_Unknown;
+            }
+
+            parse_number:
+                while (RemainingSize && (ls_parser::Digit(*C) || (*C == '.' && Token.Type != Token_Real))) {
                     if (*C == '.') {
                         Token.Type = Token_Real;
                     }
@@ -1013,9 +1018,6 @@ ls_parser::GetToken()
                     --RemainingSize;
                 }
                 Token.Text.Size = C - this->At;
-            } else {
-                Token.Type = Token_Unknown;
-            }
         } break;
     }
 

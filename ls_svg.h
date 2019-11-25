@@ -148,12 +148,10 @@ svg_v2
 SvgParseV2(ls_parser *P)
 {
     token Token = P->GetToken();
-    assert(Token.Type == Token_Real);
-    r32 x = Token.Real;
+    r32 x = Token.GetReal();
 
     Token = P->GetToken();
-    assert(Token.Type == Token_Real);
-    r32 y = Token.Real;
+    r32 y = Token.GetReal();
 
     return {x,y};
 }
@@ -162,8 +160,8 @@ r32
 SvgParseFloat(ls_parser *P)
 {
     token Token = P->GetToken();
-    assert(Token.Type == Token_Real);
-    r32 Value = Token.Real;
+    r32 Value = Token.GetReal();
+
     return Value;
 }
 
@@ -171,8 +169,7 @@ int
 SvgParseInt(ls_parser *P)
 {
     token Token = P->GetToken();
-    assert(Token.Type == Token_Integer);
-    int Value = Token.Integer;
+    int Value = Token.GetInteger();
     return Value;
 }
 
@@ -206,8 +203,10 @@ SvgAddCubicBezierSegment(svg_path *Path, svg_v2 StartP, svg_v2 EndP, svg_v2 Cont
 {
     svg_path_segement S;
     S.Type = SvgSegment_CubicBezier;
-    // S.P1 = StartP;
-    // S.P2 = EndP;
+    S.P1 = StartP;
+    S.P2 = Control1;
+    S.C1 = EndP;
+    S.C2 = Control2;
 
     Path->Segments.Push(S);
 }
@@ -217,8 +216,6 @@ SvgAddQuadraticBezierSegment(svg_path *Path, svg_v2 StartP, svg_v2 EndP)
 {
     svg_path_segement S;
     S.Type = SvgSegment_QuadraticBezier;
-    // S.P1 = StartP;
-    // S.P2 = EndP;
 
     Path->Segments.Push(S);
 }
