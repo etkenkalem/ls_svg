@@ -4,7 +4,7 @@
 template <typename type>
 struct svg_array {
     type *Data;
-    u32 Size;
+    u32 Count;
     u32 Cap;
 
     void FitN(u32 N) {
@@ -13,7 +13,7 @@ struct svg_array {
             this->Data = (type *)malloc(this->Cap * sizeof(type));
         }
 
-        if (this->Size + Size > this->Cap) {
+        if (this->Count + N > this->Cap) {
             u32 NewCap = this->Cap * 2;
             this->Data = (type *)realloc(this->Data, NewCap);
             this->Cap = NewCap;
@@ -23,9 +23,9 @@ struct svg_array {
     type *AllocN(u32 N) {
         this->FitN(N);
 
-        type *Result = this->Data + this->Size;
+        type *Result = this->Data + this->Count;
         *Result = {};
-        this->Size += Size;
+        this->Count += N;
 
         return Result;
     }
@@ -33,9 +33,9 @@ struct svg_array {
     void Push(type Data) {
         this->FitN(1);
 
-        type *Result = this->Data + this->Size;
+        type *Result = this->Data + this->Count;
         *Result = Data;
-        this->Size += Size;
+        this->Count++;
     }
 };
 
