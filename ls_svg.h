@@ -240,6 +240,7 @@ SvgParsePath(svg *Svg, ls_string String)
 
     svg_path_command_ CurrentCommand = SvgPathCommand_Null;
     svg_v2 CurrentP = {};
+    svg_v2 PreviousControlP = {};
 
     auto *E = Svg->Elements.AllocN(1);
     E->Type = SvgElement_Path;
@@ -250,115 +251,199 @@ SvgParsePath(svg *Svg, ls_string String)
         SvgParseCommand(&P, &CurrentCommand);
         assert(CurrentCommand != SvgPathCommand_Null);
 
-        if (CurrentCommand == SvgPathCommand_Move) {
-            printf("    Move\n");
-            CurrentP = SvgParseV2(&P);
-            CurrentCommand = SvgPathCommand_LineTo;
-        } else if (CurrentCommand == SvgPathCommand_MoveRel) {
-            printf("    MoveRel\n");
-            svg_v2 Pos = SvgParseV2(&P);
-            CurrentP.x += Pos.x;
-            CurrentP.y += Pos.y;
-            CurrentCommand = SvgPathCommand_LineToRel;
-        } else if (CurrentCommand == SvgPathCommand_LineTo) {
-            printf("    LineTo\n");
-            svg_v2 Pos = SvgParseV2(&P);
-            SvgAddLineSegment(&E->Path, CurrentP, Pos);
-            CurrentP = Pos;
-        } else if (CurrentCommand == SvgPathCommand_LineToRel) {
-            printf("    LineToRel\n");
-            svg_v2 Pos = SvgParseV2(&P);
-            Pos.x = CurrentP.x + Pos.x;
-            Pos.y = CurrentP.y + Pos.y;
+        switch (CurrentCommand) {
+            case SvgPathCommand_Move: {
+                printf("    Move ");
+                CurrentP = SvgParseV2(&P);
+                CurrentCommand = SvgPathCommand_LineTo;
+                printf("%.2f %.2f\n", CurrentP.x, CurrentP.y);
+            } break;
+            case SvgPathCommand_MoveRel: {
+                printf("    MoveRel ");
+                svg_v2 Pos = SvgParseV2(&P);
 
-            SvgAddLineSegment(&E->Path, CurrentP, Pos);
-            CurrentP = Pos;
-        } else if (CurrentCommand == SvgPathCommand_HorizontalLine) {
-            printf("    HorizontalLine\n");
-            r32 X = SvgParseFloat(&P);
-            svg_v2 EndP = CurrentP;
-            EndP.x = X;
-            SvgAddLineSegment(&E->Path, CurrentP, EndP);
-            CurrentP = EndP;
-        } else if (CurrentCommand == SvgPathCommand_HorizontalLineRel) {
-            printf("    HorizontalLineRel\n");
-            r32 X = SvgParseFloat(&P);
-            svg_v2 EndP = CurrentP;
-            EndP.x += X;
-            SvgAddLineSegment(&E->Path, CurrentP, EndP);
-            CurrentP = EndP;
-        } else if (CurrentCommand == SvgPathCommand_VerticalLine) {
-            printf("    VerticalLine\n");
-            r32 Y = SvgParseFloat(&P);
-            svg_v2 EndP = CurrentP;
-            EndP.y = Y;
-            SvgAddLineSegment(&E->Path, CurrentP, EndP);
-            CurrentP = EndP;
-        } else if (CurrentCommand == SvgPathCommand_VerticalLineRel) {
-            printf("    VerticalLineRel\n");
-            r32 Y = SvgParseFloat(&P);
-            svg_v2 EndP = CurrentP;
-            EndP.y += Y;
-            SvgAddLineSegment(&E->Path, CurrentP, EndP);
-            CurrentP = EndP;
-        } else if (CurrentCommand == SvgPathCommand_CubicBezier) {
-            printf("    CubicBezier\n");
-            svg_v2 Control1 = SvgParseV2(&P);
-            svg_v2 Control2 = SvgParseV2(&P);
-            svg_v2 EndP = SvgParseV2(&P);
-            SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
-            CurrentP = EndP;
-        } else if (CurrentCommand == SvgPathCommand_CubicBezierRel) {
-            printf("    CubicBezierRel\n");
-            svg_v2 Control1 = SvgParseV2(&P);
-            svg_v2 Control2 = SvgParseV2(&P);
-            svg_v2 EndP = SvgParseV2(&P);
+                printf("%.2f %.2f\n", Pos.x, Pos.y);
 
-            Control1.x += CurrentP.x;
-            Control1.y += CurrentP.y;
+                CurrentP.x += Pos.x;
+                CurrentP.y += Pos.y;
+                CurrentCommand = SvgPathCommand_LineToRel;
+            } break;
+            case SvgPathCommand_LineTo: {
+                printf("    LineTo ");
+                svg_v2 Pos = SvgParseV2(&P);
+                printf("%.2f %.2f\n", Pos.x, Pos.y);
+                SvgAddLineSegment(&E->Path, CurrentP, Pos);
+                CurrentP = Pos;
+            } break;
+            case SvgPathCommand_LineToRel: {
+                printf("    LineToRel ");
+                svg_v2 Pos = SvgParseV2(&P);
+                printf("%.2f %.2f\n", Pos.x, Pos.y);
+                Pos.x = CurrentP.x + Pos.x;
+                Pos.y = CurrentP.y + Pos.y;
 
-            Control2.x += CurrentP.x;
-            Control2.y += CurrentP.y;
+                SvgAddLineSegment(&E->Path, CurrentP, Pos);
+                CurrentP = Pos;
+            } break;
+            case SvgPathCommand_HorizontalLine: {
+                printf("    HorizontalLine ");
+                r32 X = SvgParseFloat(&P);
+                svg_v2 EndP = CurrentP;
+                EndP.x = X;
+                SvgAddLineSegment(&E->Path, CurrentP, EndP);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_HorizontalLineRel: {
+                printf("    HorizontalLineRel ");
+                r32 X = SvgParseFloat(&P);
+                svg_v2 EndP = CurrentP;
+                EndP.x += X;
+                SvgAddLineSegment(&E->Path, CurrentP, EndP);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_VerticalLine: {
+                printf("    VerticalLine ");
+                r32 Y = SvgParseFloat(&P);
+                svg_v2 EndP = CurrentP;
+                EndP.y = Y;
+                SvgAddLineSegment(&E->Path, CurrentP, EndP);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_VerticalLineRel: {
+                printf("    VerticalLineRel ");
+                r32 Y = SvgParseFloat(&P);
+                svg_v2 EndP = CurrentP;
+                EndP.y += Y;
+                SvgAddLineSegment(&E->Path, CurrentP, EndP);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_SmoothCubicBezier: {
+                printf("    SmoofCubicBezier");
+                svg_v2 Control2 = SvgParseV2(&P);
+                svg_v2 EndP = SvgParseV2(&P);
+                svg_v2 Control1 = CurrentP;
 
-            EndP.x += CurrentP.x;
-            EndP.y += CurrentP.y;
+                svg_v2 C1Rel = PreviousControlP;
+                C1Rel.x -= CurrentP.x;
+                C1Rel.y -= CurrentP.y;
+                C1Rel.x *= -1.0f;
+                C1Rel.y *= -1.0f;
 
-            SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
-            CurrentP = EndP;
-        } else if (CurrentCommand == SvgPathCommand_EllipticalArc) {
-            printf("    EllipticalArc\n");
-            r32 Rx = SvgParseFloat(&P);
-            r32 Ry = SvgParseFloat(&P);
-            r32 Angle = SvgParseFloat(&P);
-            int Arc = SvgParseInt(&P);
-            int Sweep = SvgParseInt(&P);
-            svg_v2 Pos = SvgParseV2(&P);
+                Control1.x += C1Rel.x;
+                Control1.y += C1Rel.y;
 
-            SvgAddEllipticalSegment(&E->Path, Rx, Ry, Angle, Arc, Sweep, Pos);
-            CurrentP = Pos;
-        } else if (CurrentCommand == SvgPathCommand_EllipticalArcRel) {
-            printf("    EllipticalArcRel\n");
-            r32 Rx = SvgParseFloat(&P);
-            r32 Ry = SvgParseFloat(&P);
-            r32 Angle = SvgParseFloat(&P);
-            int Arc = SvgParseInt(&P);
-            int Sweep = SvgParseInt(&P);
-            svg_v2 Pos = SvgParseV2(&P);
+                PreviousControlP = Control2;
 
-            Pos.x += CurrentP.x;
-            Pos.y += CurrentP.y;
+                printf("%.2f %.2f %.2f %.2f\n", Control2.x, Control2.y, EndP.x, EndP.y);
+                SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_SmoothCubicBezierRel: {
+                printf("    SmoofCubicBezierRel");
+                svg_v2 Control2 = SvgParseV2(&P);
+                svg_v2 EndP = SvgParseV2(&P);
+                svg_v2 Control1 = CurrentP;
 
-            SvgAddEllipticalSegment(&E->Path, Rx, Ry, Angle, Arc, Sweep, Pos);
-            CurrentP = Pos;
-        } else if (CurrentCommand == SvgPathCommand_ClosePath) {
-            printf("    ClosePath\n");
-            E->Path.Closed = true;
+                Control2.x += CurrentP.x;
+                Control2.y += CurrentP.y;
 
-            E = Svg->Elements.AllocN(1);
-            E->Type = SvgElement_Path;
+                EndP.x += CurrentP.x;
+                EndP.y += CurrentP.y;
 
-            printf("PATH:\n");
+                svg_v2 C1Rel = PreviousControlP;
+                C1Rel.x -= CurrentP.x;
+                C1Rel.y -= CurrentP.y;
+                C1Rel.x *= -1.0f;
+                C1Rel.y *= -1.0f;
+
+                Control1.x += C1Rel.x;
+                Control1.y += C1Rel.y;
+
+                printf("%.2f %.2f %.2f %.2f\n", Control2.x, Control2.y, EndP.x, EndP.y);
+                SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_CubicBezier: {
+                printf("    CubicBezier ");
+                svg_v2 Control1 = SvgParseV2(&P);
+                svg_v2 Control2 = SvgParseV2(&P);
+                svg_v2 EndP = SvgParseV2(&P);
+
+                PreviousControlP = Control2;
+
+                printf("%.2f %.2f %.2f %.2f %.2f %.2f\n", Control1.x, Control1.y, Control2.x,Control2.y, EndP.x, EndP.y);
+                SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_CubicBezierRel: {
+                printf("    CubicBezierRel ");
+                svg_v2 Control1 = SvgParseV2(&P);
+                svg_v2 Control2 = SvgParseV2(&P);
+                svg_v2 EndP = SvgParseV2(&P);
+
+                printf("%.2f %.2f %.2f %.2f %.2f %.2f\n", Control1.x, Control1.y, Control2.x,Control2.y, EndP.x, EndP.y);
+
+                Control1.x += CurrentP.x;
+                Control1.y += CurrentP.y;
+
+                Control2.x += CurrentP.x;
+                Control2.y += CurrentP.y;
+
+                EndP.x += CurrentP.x;
+                EndP.y += CurrentP.y;
+
+                PreviousControlP = Control2;
+
+                SvgAddCubicBezierSegment(&E->Path, CurrentP, EndP, Control1, Control2);
+                CurrentP = EndP;
+            } break;
+            case SvgPathCommand_EllipticalArc: {
+                printf("    EllipticalArc ");
+                r32 Rx = SvgParseFloat(&P);
+                r32 Ry = SvgParseFloat(&P);
+                r32 Angle = SvgParseFloat(&P);
+                int Arc = SvgParseInt(&P);
+                int Sweep = SvgParseInt(&P);
+                svg_v2 Pos = SvgParseV2(&P);
+
+                printf("%.2f %.2f %.2f %d %d %.2f %.2f\n", Rx, Ry, Angle, Arc, Sweep, Pos.x, Pos.y);
+
+                SvgAddEllipticalSegment(&E->Path, Rx, Ry, Angle, Arc, Sweep, Pos);
+                CurrentP = Pos;
+            } break;
+            case SvgPathCommand_EllipticalArcRel: {
+                printf("    EllipticalArcRel ");
+                r32 Rx = SvgParseFloat(&P);
+                r32 Ry = SvgParseFloat(&P);
+                r32 Angle = SvgParseFloat(&P);
+                int Arc = SvgParseInt(&P);
+                int Sweep = SvgParseInt(&P);
+                svg_v2 Pos = SvgParseV2(&P);
+
+                printf("%.2f %.2f %.2f %d %d %.2f %.2f\n", Rx, Ry, Angle, Arc, Sweep, Pos.x, Pos.y);
+
+                Pos.x += CurrentP.x;
+                Pos.y += CurrentP.y;
+
+                SvgAddEllipticalSegment(&E->Path, Rx, Ry, Angle, Arc, Sweep, Pos);
+                CurrentP = Pos;
+            } break;
+            case SvgPathCommand_ClosePath: {
+                printf("    ClosePath ");
+                E->Path.Closed = true;
+
+                E = Svg->Elements.AllocN(1);
+                E->Type = SvgElement_Path;
+
+                printf("PATH:\n");
+            } break;
+
+            default: {
+                assert(!"AAAAAAAAAAAAAAAAA STAS VSE SLAMAL!!!!!");
+            }
         }
+
+        u32 a = 4;
     }
 }
 

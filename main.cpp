@@ -55,7 +55,7 @@ ReadFile(char *Name, file *File_out)
 }
 
 void
-main()
+Svg()
 {
     file SvgFile = {};
     if (!ReadFile("electronjs.svg", &SvgFile)) {
@@ -65,4 +65,41 @@ main()
 
     // svg Svg = ParseSvg("filename")
     svg Svg = SvgParse(SvgFile.Data, SvgFile.Size);
+
+    u32 a =4;
+}
+
+// void
+// Test()
+// {
+//     file File = {};
+//     if (!ReadFile("test.txt", &File)) {
+//         printf("AAAAAAAAAAAA!\n");
+//         return;
+//     }
+
+//     r32 a = 1.0f;
+//     a = 2.0f;
+//     a = 3.0f;
+//     a = 4.0f;
+//     a = 5.0f;
+//     a = 6.0f;
+//     a = 7.0f;
+//     a = -2.0f;
+
+//     r32 t = -3.9;
+
+//     u32 b = (u32)a;
+
+//     ls_parser P((char *)File.Data, File.Size);
+//     token T = P.GetToken();
+// }
+
+void
+main()
+{
+    // Test();
+    Svg();
+
+    u32 a = 4;
 }

@@ -851,7 +851,7 @@ ls_parser::TokenToReal32(token Token)
 
     b32 FoundADot = false;
 
-   while (At < (Token.Text.Data + Token.Text.Size)) {
+    while (At < (Token.Text.Data + Token.Text.Size)) {
         if (ls_parser::Digit(*At)) {
             Numbers[NumberCounter++] = ls_parser::CharToDigit(*At);
         } else if (*At == '.' && !FoundADot) {
